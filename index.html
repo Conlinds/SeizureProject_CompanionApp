@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#EDF1EF">
+<title>Seizure Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #EDF1EF;
+  --surface: #F8FAF9;
+  --ink: #14232B;
+  --muted: #56676C;
+  --line: #C9D3D0;
+  --steady: #2E7A68;
+  --caution: #A86A0B;
+  --alarm: #C4331F;
+  --alarm-deep: #8E2213;
+  --radius: 14px;
+  font-family: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0F1A1F; --surface: #16242A; --ink: #E6EEEC; --muted: #9AABAF;
+    --line: #2A3B41; --steady: #5BB39C; --caution: #E0A43C; --alarm: #E5523B;
+  }
+}
+*, *::before, *::after { box-sizing: inherit; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--paper); line-height: 1.45; -webkit-text-size-adjust: 100%; }
+main { max-width: 480px; margin: 0 auto; padding: 20px 20px 48px; }
+button, input, select { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+  outline: 3px solid var(--steady); outline-offset: 2px;
+}
+
+/* Header */
+.top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 28px; }
+.top h1 { font-size: 1.05rem; margin: 0; font-weight: 700; }
+.conn { font-size: 0.9rem; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.conn i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); display: inline-block; }
+.conn[data-s="connected"] i { background: var(--steady); }
+.conn[data-s="connecting"] i { background: var(--caution); }
+
+/* Hero status */
+.status { border-left: 6px solid var(--line); padding: 4px 0 4px 16px; margin-bottom: 28px; }
+.status h2 { font-size: 2rem; line-height: 1.12; margin: 0 0 6px; font-weight: 700; }
+.status p { margin: 0; color: var(--muted); max-width: 34ch; }
+.status[data-tone="steady"] { border-color: var(--steady); }
+.status[data-tone="caution"] { border-color: var(--caution); }
+.status[data-tone="caution"] h2 { color: var(--caution); }
+.status[data-tone="alarm"] { border-color: var(--alarm); }
+.status[data-tone="alarm"] h2 { color: var(--alarm); }
+
+.primary {
+  display: block; width: 100%; padding: 16px; border: 0; border-radius: var(--radius);
+  background: var(--ink); color: var(--paper); font-weight: 700; font-size: 1.05rem; cursor: pointer;
+}
+.quiet { background: none; border: 0; color: var(--muted); text-decoration: underline; padding: 12px 0; cursor: pointer; }
+.connect-area { margin-bottom: 32px; }
+.connect-area .quiet { display: block; margin: 4px auto 0; }
+.hint { font-size: 0.9rem; color: var(--muted); margin-top: 12px; }
+
+/* Readouts */
+.readouts { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: 28px; }
+.readouts div { padding: 14px 0; }
+.readouts div + div { border-left: 1px solid var(--line); padding-left: 16px; }
+.readouts dt { font-size: 0.85rem; color: var(--muted); }
+.readouts dd { margin: 2px 0 0; font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.readouts dd small { font-size: 0.85rem; font-weight: 400; color: var(--muted); margin-left: 4px; }
+
+/* Electrodes */
+section h3 { font-size: 1rem; margin: 0 0 12px; }
+.electrodes { display: grid; grid-template-columns: 120px 1fr; gap: 16px; align-items: center; margin-bottom: 32px; }
+.electrodes svg { width: 120px; height: auto; }
+.electrodes svg .outline { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.electrodes svg circle { stroke: var(--surface); stroke-width: 2; }
+.electrodes ul { list-style: none; margin: 0; padding: 0; }
+.electrodes li { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 0.95rem; }
+.electrodes li b { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--line); }
+.on { fill: var(--steady); background: var(--steady) !important; }
+.off { fill: var(--alarm); background: var(--alarm) !important; }
+.unk { fill: var(--line); }
+.electrodes li.lost { color: var(--alarm); font-weight: 700; }
+
+/* Settings & log */
+.panel { background: var(--surface); border-radius: var(--radius); padding: 18px; margin-bottom: 20px; }
+label { display: block; font-size: 0.9rem; color: var(--muted); margin: 0 0 4px; }
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+input, select { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.log { list-style: none; margin: 0; padding: 0; font-size: 0.9rem; }
+.log li { display: flex; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.log li:first-child { border-top: 0; }
+.log time { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.log .empty { color: var(--muted); }
+
+.demo { border: 2px dashed var(--line); background: none; }
+.demo p { margin: 0 0 12px; font-size: 0.9rem; color: var(--muted); }
+.demo .row { display: flex; flex-wrap: wrap; gap: 8px; }
+.demo button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
+
+/* Overlays */
+.overlay { position: fixed; inset: 0; display: none; flex-direction: column; z-index: 10;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px)); }
+.overlay.show { display: flex; }
+.overlay .inner { max-width: 480px; width: 100%; margin: 0 auto; flex: 1; display: flex; flex-direction: column; }
+
+#countdown { background: var(--alarm); color: #FFF; }
+#countdown .lead { font-size: 1.35rem; font-weight: 700; margin: 8px 0 0; }
+#countdown .sub { margin: 6px 0 0; opacity: 0.9; }
+#countdown .num {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  font-size: min(58vw, 44vh); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.04em;
+}
+#countdown .cancel { background: #FFF; color: var(--alarm-deep); font-size: 1.3rem; padding: 22px; }
+#countdown.pulse { animation: flash 1s steps(1) infinite; }
+@keyframes flash { 50% { background: var(--alarm-deep); } }
+
+#fired { background: var(--alarm-deep); color: #FFF; }
+#fired h2 { font-size: 2.1rem; line-height: 1.1; margin: 12px 0 10px; }
+#fired p { margin: 0 0 24px; opacity: 0.92; }
+#fired .actions { margin-top: auto; display: grid; gap: 12px; }
+#fired a.primary { text-align: center; text-decoration: none; background: #FFF; color: var(--alarm-deep); }
+#fired .quiet { color: #FFF; }
+
+#lost { background: var(--caution); color: #FFF; }
+#lost h2 { font-size: 2rem; line-height: 1.12; margin: 12px 0 10px; }
+#lost p { margin: 0; opacity: 0.95; }
+#lost .actions { margin-top: auto; display: grid; gap: 8px; }
+#lost .primary { background: #FFF; color: var(--ink); }
+#lost .quiet { color: #FFF; }
+
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--ink); color: var(--paper); padding: 12px 18px; border-radius: 999px; font-size: 0.95rem;
+  opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; }
+.toast.show { opacity: 1; }
+
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { #countdown.pulse { animation: none; } .toast { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <h1>Seizure Monitor</h1>
+    <span class="conn" id="conn" data-s="idle"><i></i><span id="connText">Not connected</span></span>
+  </header>
+
+  <div class="status" id="status" data-tone="none">
+    <h2 id="statusTitle">Not connected</h2>
+    <p id="statusText">Connect to the monitor to start seizure detection alerts on this phone.</p>
+  </div>
+
+  <div class="connect-area" id="connectArea">
+    <button class="primary" id="connectBtn">Connect to monitor</button>
+    <button class="quiet" id="demoBtn">Try without a device</button>
+    <p class="hint" id="btHint" hidden>This browser can't use Bluetooth. On iPhone, open this page in the free Bluefy app. On a computer, use Chrome.</p>
+  </div>
+
+  <div id="live" hidden>
+    <dl class="readouts">
+      <div><dt>Battery</dt><dd><span id="batt">--</span><small id="battV"></small></dd></div>
+      <div><dt>Heart rate</dt><dd><span id="hr">--</span><small>bpm</small></dd></div>
+    </dl>
+
+    <section class="electrodes" aria-labelledby="elHead">
+      <svg viewBox="0 0 200 210" aria-hidden="true">
+        <path class="outline" d="M150 118 C 168 92, 166 48, 136 26 C 108 6, 60 10, 40 38 C 26 58, 30 76, 26 88 L 16 104 C 12 110, 18 114, 24 114 L 28 116 C 26 124, 30 128, 34 130 C 32 138, 36 146, 48 146 C 58 146, 72 148, 78 158 L 80 206"/>
+        <path class="outline" d="M150 118 C 146 140, 148 170, 160 206"/>
+        <path class="outline" d="M112 76 C 124 70, 132 82, 128 96 C 126 106, 118 110, 114 104"/>
+        <circle id="d4" class="unk" cx="118" cy="88" r="8"/>
+        <circle id="d5" class="unk" cx="140" cy="86" r="8"/>
+        <circle id="d3" class="unk" cx="138" cy="112" r="8"/>
+        <circle id="d1" class="unk" cx="116" cy="124" r="8"/>
+        <circle id="d2" class="unk" cx="152" cy="158" r="8"/>
+      </svg>
+      <div>
+        <h3 id="elHead">Electrode contact</h3>
+        <ul id="elList"></ul>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="setHead">
+    <h3 id="setHead">Emergency contact</h3>
+    <div class="field"><label for="cName">Name</label><input id="cName" autocomplete="name" placeholder="Who should be alerted"></div>
+    <div class="field"><label for="cPhone">Phone number</label><input id="cPhone" type="tel" autocomplete="tel" placeholder="+1 806 555 0100"></div>
+    <div class="field"><label for="cdLen">Countdown before alerting</label>
+      <select id="cdLen">
+        <option value="5">5 seconds</option><option value="6">6 seconds</option><option value="7">7 seconds</option>
+        <option value="8">8 seconds</option><option value="9">9 seconds</option><option value="10" selected>10 seconds</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="logHead">
+    <h3 id="logHead">Recent events</h3>
+    <ul class="log" id="log"></ul>
+  </section>
+
+  <section class="panel demo" id="demoPanel" hidden aria-labelledby="demoHead">
+    <h3 id="demoHead">Demo controls</h3>
+    <p>You're in demo mode. These buttons stand in for the monitor.</p>
+    <div class="row">
+      <button data-demo="seizure">Start seizure alert</button>
+      <button data-demo="charge">Toggle charging</button>
+      <button data-demo="lead">Lift nape electrode</button>
+      <button data-demo="battery">Drain battery</button>
+      <button data-demo="drop">Drop connection</button>
+      <button data-demo="exit">Exit demo</button>
+    </div>
+  </section>
+</main>
+
+<div class="overlay" id="countdown" role="alertdialog" aria-labelledby="cdLead">
+  <div class="inner">
+    <p class="lead" id="cdLead">Possible seizure detected</p>
+    <p class="sub" id="cdSub">Alerting your emergency contact in</p>
+    <div class="num" id="cdNum" aria-live="assertive">10</div>
+    <button class="primary cancel" id="cancelBtn">I'm okay, cancel alert</button>
+  </div>
+</div>
+
+<div class="overlay" id="fired" role="alertdialog" aria-labelledby="firedHead">
+  <div class="inner">
+    <h2 id="firedHead">Get help now</h2>
+    <p id="firedText">The countdown ended without being cancelled. Contact your emergency contact now.</p>
+    <div class="actions">
+      <a class="primary" id="callBtn" href="#">Call</a>
+      <a class="primary" id="textBtn" href="#">Text with location</a>
+      <button class="quiet" id="firedDismiss">I'm safe, dismiss</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="lost" role="alertdialog" aria-labelledby="lostHead">
+  <div class="inner">
+    <h2 id="lostHead">Connection to the monitor lost</h2>
+    <p id="lostText">Seizures won't be detected on this phone until it reconnects. Keep this page open and the phone unlocked.</p>
+    <div class="actions">
+      <button class="primary" id="reconnectBtn">Reconnect</button>
+      <button class="quiet" id="lostDismiss">Stop alarm</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+// ---------- BLE contract (matches the ESP32 firmware) ----------
+const U = (x) => `0297${x}-2588-4595-ab2f-5e30ae37e1a2`;
+const SVC = U("8000"), CH_ALERT = U("8001"), CH_CANCEL = U("8002"), CH_STATUS = U("8003"),
+      CH_LEADS = U("8004"), CH_VOLT = U("8005"), CH_CDLEN = U("8006");
+const ST_MONITORING = 1, ST_CHARGING = 2, ST_LOW = 4, ST_CRITICAL = 8;
+const ALERT = { IDLE: 0, COUNTDOWN: 1, FIRED: 2, CANCELLED: 3 };
+const ELECTRODES = ["Beneath ear", "Nape of neck", "Mastoid (reference)", "Ear concha", "Behind ear"];
+
+const $ = (id) => document.getElementById(id);
+const state = { conn: "idle", status: null, leads: null, pct: null, mv: null, hr: null, alert: ALERT.IDLE, mode: null };
+
+// ---------- storage (guarded) ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+// ---------- sound, wake lock, toast ----------
+let audio = null;
+function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === "suspended") audio.resume(); } catch {} }
+function beep(freq = 880, ms = 180, vol = 0.25) {
+  if (!audio) return;
+  try {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = freq; o.type = "square"; g.gain.value = vol;
+    o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + ms / 1000);
+  } catch {}
+}
+let lostAlarm = null;
+function startLostAlarm() { stopLostAlarm(); lostAlarm = setInterval(() => { beep(620, 250); setTimeout(() => beep(520, 250), 300); }, 1500); }
+function stopLostAlarm() { clearInterval(lostAlarm); lostAlarm = null; }
+
+let wakeLock = null;
+async function keepAwake() { try { if ("wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => wakeLock = null); } } catch {} }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state.conn === "connected") keepAwake(); });
+
+let toastT;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2800); }
+
+// ---------- event log ----------
+let events = store.get("events", []);
+function logEvent(text) {
+  events.unshift({ t: Date.now(), text }); events = events.slice(0, 30); store.set("events", events); renderLog();
+}
+function renderLog() {
+  const ul = $("log"); ul.innerHTML = "";
+  if (!events.length) { ul.innerHTML = '<li class="empty">No events yet.</li>'; return; }
+  for (const e of events.slice(0, 8)) {
+    const li = document.createElement("li");
+    const d = new Date(e.t);
+    const tm = document.createElement("time");
+    tm.textContent = d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const s = document.createElement("span"); s.textContent = e.text;
+    li.append(tm, s); ul.append(li);
+  }
+}
+
+// ---------- settings ----------
+const contactName = () => ($("cName").value.trim() || "your emergency contact");
+$("cName").value = store.get("cName", ""); $("cPhone").value = store.get("cPhone", "");
+$("cName").addEventListener("input", (e) => { store.set("cName", e.target.value); render(); });
+$("cPhone").addEventListener("input", (e) => store.set("cPhone", e.target.value));
+$("cdLen").addEventListener("change", (e) => { if (link) link.setCountdown(+e.target.value); toast(`Countdown set to ${e.target.value} seconds`); });
+
+// ---------- rendering ----------
+function render() {
+  const c = $("conn"); c.dataset.s = state.conn;
+  $("connText").textContent = { idle: "Not connected", connecting: "Connecting…", connected: state.mode === "demo" ? "Demo" : "Connected", lost: "Connection lost" }[state.conn];
+  $("connectArea").hidden = state.conn === "connected";
+  $("live").hidden = state.conn !== "connected";
+
+  let tone = "none", title = "Not connected", text = "Connect to the monitor to start seizure detection alerts on this phone.";
+  if (state.conn === "connecting") { title = "Connecting"; text = "Choose the monitor from the list that appears."; }
+  else if (state.conn === "lost") { tone = "caution"; title = "Connection lost"; text = "Seizures won't be detected on this phone until it reconnects."; }
+  else if (state.conn === "connected" && state.status !== null) {
+    const off = leadsOff();
+    if (state.status & ST_CHARGING) { tone = "caution"; title = "Not monitoring while charging"; text = "Detection is off while the monitor is plugged in. Unplug it before wearing."; }
+    else if (state.status & ST_CRITICAL) { tone = "alarm"; title = "Battery critically low"; text = "The monitor will shut down soon. Charge it now."; }
+    else if (off.length) { tone = "caution"; title = off.length === 1 ? `Check the ${off[0].toLowerCase()} electrode` : "Check electrode contact"; text = "Detection is less reliable until every electrode touches the skin."; }
+    else if (state.status & ST_LOW) { tone = "caution"; title = "Monitoring, battery low"; text = "Charge the monitor soon."; }
+    else if (state.status & ST_MONITORING) { tone = "steady"; title = "Monitoring"; text = `Seizure detection is running. If it detects one, you'll get a countdown before ${contactName()} is alerted.`; }
+    else { title = "Monitor idle"; text = "The monitor is connected but not detecting."; }
+  } else if (state.conn === "connected") { title = "Reading monitor"; text = "Getting the latest status."; }
+  const st = $("status"); st.dataset.tone = tone; $("statusTitle").textContent = title; $("statusText").textContent = text;
+
+  $("batt").textContent = state.pct === null ? "--" : `${state.pct}%`;
+  $("battV").textContent = state.mv === null ? "" : `${(state.mv / 1000).toFixed(2)} V`;
+  $("hr").textContent = state.hr === null ? "--" : state.hr;
+
+  const ul = $("elList"); ul.innerHTML = "";
+  ELECTRODES.forEach((name, i) => {
+    const known = state.leads !== null, lost = known && (state.leads >> i) & 1;
+    const li = document.createElement("li"); if (lost) li.className = "lost";
+    const b = document.createElement("b"); b.className = !known ? "" : lost ? "off" : "on";
+    const s = document.createElement("span"); s.textContent = name + (lost ? ": no contact" : "");
+    li.append(b, s); ul.append(li);
+    $("d" + (i + 1)).setAttribute("class", !known ? "unk" : lost ? "off" : "on");
+  });
+}
+const leadsOff = () => state.leads === null ? [] : ELECTRODES.filter((_, i) => (state.leads >> i) & 1);
+
+// ---------- incoming data handlers (shared by BLE and demo) ----------
+const handle = {
+  alert(s, secs) {
+    const prev = state.alert; state.alert = s;
+    const cd = $("countdown"), fired = $("fired");
+    if (s === ALERT.COUNTDOWN) {
+      if (prev !== ALERT.COUNTDOWN) logEvent("Possible seizure detected, countdown started");
+      $("cdSub").textContent = `Alerting ${contactName()} in`;
+      $("cdNum").textContent = secs; cd.classList.add("show", "pulse"); fired.classList.remove("show");
+      beep(secs <= 3 ? 1200 : 900, 200); if (navigator.vibrate) navigator.vibrate(200);
+    } else if (s === ALERT.FIRED) {
+      cd.classList.remove("show", "pulse");
+      if (prev !== ALERT.FIRED) { logEvent("Alert not cancelled, emergency screen shown"); showFired(); }
+    } else if (s === ALERT.CANCELLED) {
+      cd.classList.remove("show", "pulse"); fired.classList.remove("show");
+      if (prev === ALERT.COUNTDOWN) { logEvent("Alert cancelled"); toast("Alert cancelled"); }
+    } else { cd.classList.remove("show", "pulse"); }
+  },
+  status(bits) {
+    const prev = state.status; state.status = bits;
+    if (prev !== null) {
+      if ((bits & ST_CHARGING) && !(prev & ST_CHARGING)) logEvent("Monitor plugged in, detection paused");
+      if (!(bits & ST_CHARGING) && (prev & ST_CHARGING)) logEvent("Monitor unplugged, detection resumed");
+      if ((bits & ST_CRITICAL) && !(prev & ST_CRITICAL)) { logEvent("Battery critically low"); beep(440, 400); }
+    }
+    render();
+  },
+  leads(mask) {
+    const prev = state.leads; state.leads = mask;
+    if (prev !== null) ELECTRODES.forEach((n, i) => {
+      const was = (prev >> i) & 1, now = (mask >> i) & 1;
+      if (now && !was) logEvent(`${n} electrode lost contact`);
+      if (!now && was) logEvent(`${n} electrode back in contact`);
+    });
+    render();
+  },
+  pct(p) { state.pct = p; render(); },
+  mv(v) { state.mv = v; render(); },
+  hr(b) { state.hr = b; render(); },
+  cdlen(n) { if (n >= 5 && n <= 10) $("cdLen").value = String(n); }
+};
+
+function showFired() {
+  const name = $("cName").value.trim(), phone = $("cPhone").value.replace(/[^\d+]/g, "");
+  $("firedText").textContent = phone
+    ? `The countdown ended without being cancelled. Contact ${name || "your emergency contact"} now.`
+    : "The countdown ended without being cancelled. No emergency contact is saved, so call for help directly.";
+  $("callBtn").textContent = phone ? `Call ${name || phone}` : "Call 911";
+  $("callBtn").href = `tel:${phone || "911"}`;
+  $("textBtn").hidden = !phone;
+  const body = (loc) => encodeURIComponent(`Seizure alert from my monitor at ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.${loc ? " My location: " + loc : ""}`);
+  $("textBtn").href = `sms:${phone}&body=${body("")}`;
+  if (phone && navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (p) => { $("textBtn").href = `sms:${phone}&body=${body(`https://maps.google.com/?q=${p.coords.latitude.toFixed(5)},${p.coords.longitude.toFixed(5)}`)}`; },
+      () => {}, { timeout: 8000, maximumAge: 60000 });
+  }
+  $("fired").classList.add("show");
+  let n = 0; const siren = setInterval(() => { if (!$("fired").classList.contains("show") || n++ > 20) return clearInterval(siren); beep(1000, 300); setTimeout(() => beep(750, 300), 350); }, 900);
+}
+
+// ---------- BLE link ----------
+let link = null;
+class BleLink {
+  constructor() { this.device = null; this.ch = {}; this.retries = 0; this.userClosed = false; }
+  async connect() {
+    this.device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }], optionalServices: ["battery_service", "heart_rate"] });
+    this.device.addEventListener("gattserverdisconnected", () => this.onDrop());
+    await this.attach();
+  }
+  async attach() {
+    const server = await this.device.gatt.connect();
+    const svc = await server.getPrimaryService(SVC);
+    const sub = async (svcObj, uuid, fn) => {
+      const c = await svcObj.getCharacteristic(uuid); this.ch[uuid] = c;
+      if (c.properties.notify) { c.addEventListener("characteristicvaluechanged", (e) => fn(e.target.value)); await c.startNotifications(); }
+      if (c.properties.read) fn(await c.readValue());
+      return c;
+    };
+    await sub(svc, CH_STATUS, (v) => handle.status(v.getUint8(0)));
+    await sub(svc, CH_LEADS, (v) => handle.leads(v.getUint8(0)));
+    await sub(svc, CH_VOLT, (v) => handle.mv(v.getUint16(0, true)));
+    await sub(svc, CH_CDLEN, (v) => handle.cdlen(v.getUint8(0)));
+    await sub(svc, CH_ALERT, (v) => handle.alert(v.getUint8(0), v.byteLength > 1 ? v.getUint8(1) : 0));
+    this.ch[CH_CANCEL] = await svc.getCharacteristic(CH_CANCEL);
+    try { const b = await server.getPrimaryService("battery_service"); await sub(b, "battery_level", (v) => handle.pct(v.getUint8(0))); } catch {}
+    try {
+      const h = await server.getPrimaryService("heart_rate");
+      await sub(h, "heart_rate_measurement", (v) => { const f = v.getUint8(0); handle.hr(f & 1 ? v.getUint16(1, true) : v.getUint8(1)); });
+    } catch {}
+    this.retries = 0; setConn("connected");
+  }
+  async write(uuid, bytes) {
+    const c = this.ch[uuid]; if (!c) return;
+    const data = new Uint8Array(bytes);
+    try { c.writeValueWithResponse ? await c.writeValueWithResponse(data) : await c.writeValue(data); }
+    catch (e) { toast("Couldn't reach the monitor"); throw e; }
+  }
+  cancel() { return this.write(CH_CANCEL, [1]); }
+  setCountdown(n) { return this.write(CH_CDLEN, [n]).catch(() => {}); }
+  onDrop() {
+    if (this.userClosed) return;
+    setConn("lost"); logEvent("Connection to monitor lost");
+    $("lost").classList.add("show"); startLostAlarm(); this.retry();
+  }
+  async retry() {
+    if (this.retries >= 5 || state.conn === "connected") return;
+    this.retries++;
+    $("lostText").textContent = `Seizures won't be detected on this phone until it reconnects. Trying again (${this.retries} of 5)…`;
+    setTimeout(async () => {
+      try { await this.attach(); onReconnected(); }
+      catch { if (this.retries >= 5) $("lostText").textContent = "Couldn't reconnect automatically. Check that the monitor is on and nearby, then tap Reconnect."; else this.retry(); }
+    }, 2000);
+  }
+  async manualReconnect() { this.retries = 0; try { await this.attach(); onReconnected(); } catch { toast("Monitor not found. Is it on and nearby?"); } }
+  close() { this.userClosed = true; try { this.device && this.device.gatt.disconnect(); } catch {} }
+}
+function onReconnected() { $("lost").classList.remove("show"); stopLostAlarm(); logEvent("Reconnected to monitor"); toast("Reconnected"); }
+
+// ---------- demo link (simulates the monitor in the browser) ----------
+class DemoLink {
+  constructor() { this.status = ST_MONITORING; this.leads = 0; this.mv = 4020; this.cdlen = +$("cdLen").value; this.alertState = 0; this.timer = null; this.dropped = false; }
+  pctFromMv(mv) { return Math.max(0, Math.min(100, Math.round((mv - 3450) / (4150 - 3450) * 100))); }
+  connect() {
+    setConn("connecting");
+    return new Promise((res) => setTimeout(() => {
+      setConn("connected"); this.push();
+      this.hrTimer = setInterval(() => { if (!this.dropped) handle.hr(this.alertState === 1 ? 118 + Math.round(Math.random() * 14) : 70 + Math.round(Math.random() * 6)); }, 1000);
+      res();
+    }, 600));
+  }
+  push() {
+    let s = this.status & ~(ST_LOW | ST_CRITICAL);
+    if (this.mv < 3600) s |= ST_LOW; if (this.mv < 3450) s |= ST_CRITICAL;
+    handle.status(s); handle.leads(this.leads); handle.mv(this.mv); handle.pct(this.pctFromMv(this.mv)); handle.cdlen(this.cdlen);
+  }
+  seizure() {
+    if (this.status & ST_CHARGING) return toast("The monitor doesn't detect while charging");
+    if (this.alertState === 1) return;
+    let n = this.cdlen; this.alertState = 1; handle.alert(1, n);
+    this.timer = setInterval(() => {
+      n--; if (n > 0) handle.alert(1, n);
+      else { clearInterval(this.timer); this.alertState = 2; handle.alert(2, 0); }
+    }, 1000);
+  }
+  cancel() { clearInterval(this.timer); if (this.alertState === 1) { this.alertState = 3; handle.alert(3, 0); setTimeout(() => { this.alertState = 0; handle.alert(0, 0); }, 1500); } return Promise.resolve(); }
+  setCountdown(n) { this.cdlen = n; }
+  toggleCharge() { this.status ^= ST_CHARGING; this.status = (this.status & ST_CHARGING) ? ST_CHARGING : ST_MONITORING; this.push(); }
+  toggleLead() { this.leads ^= 0b00010; this.push(); }
+  drain() { this.mv = this.mv > 3650 ? 3560 : this.mv > 3500 ? 3420 : 4020; this.push(); }
+  drop() { this.dropped = true; setConn("lost"); logEvent("Connection to monitor lost"); $("lost").classList.add("show"); startLostAlarm(); $("lostText").textContent = "Demo: the connection dropped. Tap Reconnect to restore it."; }
+  manualReconnect() { this.dropped = false; setConn("connected"); this.push(); onReconnected(); }
+  close() { clearInterval(this.timer); clearInterval(this.hrTimer); }
+}
+
+function setConn(s) { state.conn = s; if (s === "connected") keepAwake(); render(); }
+
+// ---------- wiring ----------
+const hasBle = !!(navigator.bluetooth && navigator.bluetooth.requestDevice);
+$("connectBtn").addEventListener("click", async () => {
+  unlockAudio();
+  if (!hasBle) { $("btHint").hidden = false; return; }
+  try {
+    link = new BleLink(); state.mode = "ble"; setConn("connecting");
+    await link.connect(); logEvent("Connected to monitor");
+  } catch (e) {
+    link = null; setConn("idle");
+    if (e && e.name !== "NotFoundError") toast("Couldn't connect. Make sure the monitor is on and nearby.");
+  }
+});
+$("demoBtn").addEventListener("click", async () => {
+  unlockAudio(); link = new DemoLink(); state.mode = "demo"; $("demoPanel").hidden = false;
+  await link.connect(); logEvent("Started demo mode");
+});
+$("demoPanel").addEventListener("click", (e) => {
+  const a = e.target.dataset && e.target.dataset.demo; if (!a || !(link instanceof DemoLink)) return;
+  ({ seizure: () => link.seizure(), charge: () => link.toggleCharge(), lead: () => link.toggleLead(), battery: () => link.drain(), drop: () => link.drop(),
+     exit: () => { link.close(); link = null; state.mode = null; Object.assign(state, { status: null, leads: null, pct: null, mv: null, hr: null }); $("demoPanel").hidden = true; setConn("idle"); } })[a]();
+});
+$("cancelBtn").addEventListener("click", async () => {
+  if (!link) return;
+  try { await link.cancel(); } catch { toast("Cancel didn't reach the monitor. Double-tap the monitor to cancel."); }
+});
+$("firedDismiss").addEventListener("click", () => { $("fired").classList.remove("show"); logEvent("Emergency screen dismissed"); });
+$("reconnectBtn").addEventListener("click", () => { unlockAudio(); link && link.manualReconnect(); });
+$("lostDismiss").addEventListener("click", () => { stopLostAlarm(); $("lost").classList.remove("show"); });
+
+if (!hasBle) $("btHint").hidden = false;
+renderLog(); render();
+</script>
+</body>
+</html>
